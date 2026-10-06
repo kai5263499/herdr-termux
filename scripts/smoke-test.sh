@@ -21,6 +21,8 @@ cleanup() {
     if [ -n "$server_pid" ]; then
         h server stop >/dev/null 2>&1 || true
         kill "$server_pid" 2>/dev/null || true
+        # A wedged test server must not leave cleanup waiting indefinitely.
+        kill -KILL "$server_pid" 2>/dev/null || true
         wait "$server_pid" 2>/dev/null || true
     fi
     if [ "$smoke_ok" = true ]; then

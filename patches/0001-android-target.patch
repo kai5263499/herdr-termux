@@ -36,7 +36,7 @@ index af02e0a..45d3787 100644
          if let Some(libc_file) = env::var_os("LIBGHOSTTY_VT_WINDOWS_LIBC") {
              println!(
 diff --git a/src/platform/mod.rs b/src/platform/mod.rs
-index 927cd32..d6c74d3 100644
+index 927cd32..89e7281 100644
 --- a/src/platform/mod.rs
 +++ b/src/platform/mod.rs
 @@ -90,7 +90,7 @@ pub(crate) fn classify_child_exit(_status: &portable_pty::ExitStatus) -> ChildEx
@@ -151,7 +151,35 @@ index 927cd32..d6c74d3 100644
  pub(crate) fn parse_agent_env_hint(environ: &[u8]) -> Option<crate::detect::Agent> {
      for record in environ.split(|&byte| byte == 0) {
          let Some(value) = record.strip_prefix(b"HERDR_AGENT=") else {
-@@ -611,7 +624,7 @@ mod tests {
+@@ -591,7 +604,12 @@ mod tests {
+     #[test]
+     fn detached_custom_command_preserves_unix_login_shell_flag() {
+         let cmd = detached_custom_command_process("echo hello");
+-        assert_eq!(cmd.get_program(), std::ffi::OsStr::new("/bin/sh"));
++        let shell = if cfg!(target_os = "android") {
++            "/data/data/com.termux/files/usr/bin/sh"
++        } else {
++            "/bin/sh"
++        };
++        assert_eq!(cmd.get_program(), std::ffi::OsStr::new(shell));
+         assert_eq!(
+             cmd.get_args().collect::<Vec<_>>(),
+             [
+@@ -603,15 +621,20 @@ mod tests {
+ 
+     #[test]
+     fn pane_custom_command_builder_preserves_unix_shell_flag() {
++        let shell = if cfg!(target_os = "android") {
++            "/data/data/com.termux/files/usr/bin/sh"
++        } else {
++            "/bin/sh"
++        };
+         let expected: Vec<std::ffi::OsString> =
+-            vec!["/bin/sh".into(), "-c".into(), "echo hello".into()];
++            vec![shell.into(), "-c".into(), "echo hello".into()];
+         assert_eq!(
+             pane_custom_command_pty_builder("echo hello").get_argv(),
+             &expected
          );
      }
  
@@ -160,7 +188,7 @@ index 927cd32..d6c74d3 100644
      #[test]
      fn parse_agent_env_hint_accepts_known_agents() {
          assert_eq!(
-@@ -624,14 +637,14 @@ mod tests {
+@@ -624,14 +647,14 @@ mod tests {
          );
      }
  

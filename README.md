@@ -28,6 +28,15 @@ No Rust or Zig compiler is required on the phone.
 
 `Ctrl+B`, then `Q`, detaches. Run `herdr` again to reattach.
 
+To check the local server and shell automatically after installation:
+
+```sh
+curl -fL https://github.com/kai5263499/herdr-termux/releases/download/v0.9.3-termux.1/smoke-test.sh -o smoke-test.sh
+sh smoke-test.sh "$(command -v herdr)"
+```
+
+This creates and removes an isolated test session and prints `PASS` on success.
+
 ## Update or remove
 
 For a later published release, download its installer from the

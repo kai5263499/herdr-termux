@@ -6,7 +6,7 @@ distribution and have not been submitted upstream.
 
 | Patch | Purpose |
 | --- | --- |
-| `0001-android-target.patch` | Add Android API 24 Zig targets and NDK libc configuration; select the existing Linux process implementation and Unix daemon handling on Android; disable upstream binary updates for Termux packages. |
+| `0001-android-target.patch` | Add Android API 24 Zig targets and NDK libc configuration; select the existing Linux process implementation and Unix daemon handling on Android; provide a Termux pane shell when `SHELL` is unset; disable upstream binary updates for Termux packages. |
 | `0002-android-runtime.patch` | Exclude logind, use Termux shell and SSH configuration paths, avoid inaccessible `/tmp` fallbacks, and disable SSH connection sharing where Termux paths exceed socket limits. |
 
 The release build verifies the pinned revision and rejects tracked source edits

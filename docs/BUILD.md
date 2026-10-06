@@ -64,9 +64,12 @@ licenses and dependency notices.
 ## Release procedure
 
 Pushes to `main`, pull requests, manual dispatches, and downstream release tags
-run the build/package workflow. Tag builds create a **draft** GitHub Release;
-publish it after the Android runtime checks pass. This prevents a successful
-cross-compilation from being presented as runtime verification.
+run the build/package workflow. The package is installed and its complete smoke
+test runs in a pinned Termux container on a native ARM GitHub runner. This tests
+the aarch64 binary without instruction translation. The container uses the
+runner's Linux kernel, so separate Android app testing remains necessary.
+Tag builds create a **draft** GitHub Release after those checks;
+publish it after the Android runtime checks pass.
 
 The workflow currently builds the explicitly pinned upstream version. To move
 to a newer upstream release, review/rebase the patches, update source and

@@ -28,10 +28,47 @@ musl binary prints its version through the terminal's native bridge, but its
 full runtime remains a separate check. These results do not establish whether
 the upstream arm64 musl binary works on a physical arm64 phone.
 
-The Android aarch64 cross-build has succeeded. Its interpreter is
+The Android aarch64 cross-build succeeded. Its interpreter is
 `/system/bin/linker64` and its dynamic dependencies are `libc.so`, `libdl.so`,
-and `libm.so`, all provided by Android. Candidate runtime and package installation
-checks are in progress; final results will be recorded before publication.
+and `libm.so`, all provided by Android. Through the emulator's arm64 translation,
+the actual Termux app can start the patched server, query its API, use default
+socket paths with mode 0600, and stop the server. The translation stalls at PTY
+creation. A native x86_64 Android build of the same patches passes the full smoke
+test in the actual Termux terminal, including PTY shell command execution.
+See [the Android test notes](ANDROID-TEST-NOTES.md) for context and hashes.
+
+Native ARM package installation and runtime are checked separately in CI using
+the pinned Termux Docker image on a native ARM GitHub runner. The container
+validates the target binary and userland, but does not duplicate Android app
+seccomp/SELinux enforcement.
+
+[CI run 37503145293](https://github.com/kai5263499/herdr-termux/actions/runs/37503145293)
+passed the independent build, all 13 package/installer checks, and a clean native
+ARM `pkg install` followed by the full shell/session smoke test with `SHELL`
+unset. The release uses the exact `.deb` from that run.
+
+Release package: `herdr_0.9.3-1_aarch64.deb` (5,289,576 bytes).
+SHA-256: `634fc754539a665970f569613e3413fadb6cd231c9ab5b54487690c9ce4ded8c`.
+Packaged binary SHA-256:
+`2925165e65a885fdbe0a3639620928ed31acbee08c0483efa0b2c58ae94a450f`.
+The binary and patch hashes were checked against the CI build metadata, and
+the release installer and smoke script match the checked-in source.
+
+The first native ARM run installed the package successfully and exposed a shell
+fallback defect when `SHELL` was absent: pane creation selected `/bin/sh`. The
+source now selects Termux's `sh`, and the smoke test always clears `SHELL` and
+inherited config routing. Retesting inside the actual Android app passed; a
+process query confirmed `/data/data/com.termux/files/usr/bin/sh` was executing.
+
+## Scope of checks
+
+The upstream `just check` suite was not run: `just`/`cargo-nextest` and the
+Windows SDK used by that cross-platform suite were not installed. This port
+changes Android compile gates and platform paths. Validation instead includes
+both Android architecture builds, formatting checks on changed Rust files,
+ShellCheck, the 13 package/installer tests, and runtime tests of the changed
+platform paths. No claim is made about running upstream's entire regression
+suite.
 
 ## Phone acceptance
 

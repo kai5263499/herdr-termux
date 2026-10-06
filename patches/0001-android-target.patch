@@ -1,0 +1,203 @@
+diff --git a/crates/ghostty-vt/build.rs b/crates/ghostty-vt/build.rs
+index af02e0a..45d3787 100644
+--- a/crates/ghostty-vt/build.rs
++++ b/crates/ghostty-vt/build.rs
+@@ -9,6 +9,8 @@ fn zig_target(target: &str) -> &str {
+         "aarch64-unknown-linux-gnu" => "aarch64-linux-gnu",
+         "x86_64-unknown-linux-musl" => "x86_64-linux-musl",
+         "aarch64-unknown-linux-musl" => "aarch64-linux-musl",
++        "aarch64-linux-android" => "aarch64-linux-android.24",
++        "x86_64-linux-android" => "x86_64-linux-android.24",
+         "x86_64-apple-darwin" => "x86_64-macos",
+         "aarch64-apple-darwin" => "aarch64-macos",
+         "aarch64-apple-ios" => "aarch64-ios",
+@@ -54,6 +56,7 @@ fn main() {
+     println!("cargo:rerun-if-env-changed=LIBGHOSTTY_VT_ZIG_SYSTEM_DIR");
+     println!("cargo:rerun-if-env-changed=ZIG");
+     println!("cargo:rerun-if-env-changed=LIBGHOSTTY_VT_WINDOWS_LIBC");
++    println!("cargo:rerun-if-env-changed=LIBGHOSTTY_VT_ANDROID_LIBC");
+ 
+     let optimize = env::var("LIBGHOSTTY_VT_OPTIMIZE").unwrap_or_else(|_| "ReleaseFast".into());
+     let simd = env_bool("LIBGHOSTTY_VT_SIMD").unwrap_or(true);
+@@ -81,6 +84,15 @@ fn main() {
+         .arg(format!("-Dtarget={zig_target}"))
+         .arg(format!("-Dversion-string={version_string}"))
+         .arg("-Demit-xcframework=false");
++    if target.ends_with("linux-android") {
++        if let Some(libc_file) = env::var_os("LIBGHOSTTY_VT_ANDROID_LIBC") {
++            println!(
++                "cargo:rerun-if-changed={}",
++                PathBuf::from(&libc_file).display()
++            );
++            command.arg("--libc").arg(libc_file);
++        }
++    }
+     if target.ends_with("windows-msvc") {
+         if let Some(libc_file) = env::var_os("LIBGHOSTTY_VT_WINDOWS_LIBC") {
+             println!(
+diff --git a/src/platform/mod.rs b/src/platform/mod.rs
+index 927cd32..d6c74d3 100644
+--- a/src/platform/mod.rs
++++ b/src/platform/mod.rs
+@@ -90,7 +90,7 @@ pub(crate) fn classify_child_exit(_status: &portable_pty::ExitStatus) -> ChildEx
+     ChildExitReason::Exited
+ }
+ 
+-#[cfg(not(target_os = "linux"))]
++#[cfg(not(any(target_os = "linux", target_os = "android")))]
+ pub(crate) fn launch_executable() -> std::io::Result<std::path::PathBuf> {
+     std::env::current_exe()
+ }
+@@ -193,7 +193,7 @@ pub(crate) fn prepare_server_process(_handoff_import: bool) -> std::io::Result<b
+     Ok(false)
+ }
+ 
+-#[cfg(any(target_os = "linux", target_os = "macos"))]
++#[cfg(any(target_os = "linux", target_os = "android", target_os = "macos"))]
+ pub fn detach_server_daemon_command(command: &mut std::process::Command) {
+     use std::os::unix::process::CommandExt;
+ 
+@@ -210,7 +210,7 @@ pub fn detach_server_daemon_command(command: &mut std::process::Command) {
+     }
+ }
+ 
+-#[cfg(any(target_os = "linux", target_os = "macos"))]
++#[cfg(any(target_os = "linux", target_os = "android", target_os = "macos"))]
+ pub fn current_process_is_detached_server_daemon() -> bool {
+     unsafe { libc::getsid(0) == libc::getpid() }
+ }
+@@ -318,8 +318,11 @@ pub(crate) struct RemoteSshConfigPaths {
+     pub(crate) multiplexing: bool,
+ }
+ 
+-pub(crate) const REMOTE_BRIDGE_IDLE_TIMEOUT_SUPPORTED: bool =
+-    cfg!(any(target_os = "linux", target_os = "macos"));
++pub(crate) const REMOTE_BRIDGE_IDLE_TIMEOUT_SUPPORTED: bool = cfg!(any(
++    target_os = "linux",
++    target_os = "android",
++    target_os = "macos"
++));
+ 
+ #[cfg(unix)]
+ mod remote_bridge;
+@@ -343,9 +346,9 @@ pub(crate) fn begin_cli_output() {}
+ #[cfg(not(unix))]
+ pub(crate) fn end_cli_output() {}
+ 
+-#[cfg(target_os = "linux")]
++#[cfg(any(target_os = "linux", target_os = "android"))]
+ mod linux;
+-#[cfg(target_os = "linux")]
++#[cfg(any(target_os = "linux", target_os = "android"))]
+ pub use linux::*;
+ 
+ #[cfg(target_os = "macos")]
+@@ -358,12 +361,22 @@ mod windows;
+ #[cfg(target_os = "windows")]
+ pub use windows::*;
+ 
+-#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
++#[cfg(not(any(
++    target_os = "linux",
++    target_os = "android",
++    target_os = "macos",
++    target_os = "windows"
++)))]
+ mod fallback;
+-#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
++#[cfg(not(any(
++    target_os = "linux",
++    target_os = "android",
++    target_os = "macos",
++    target_os = "windows"
++)))]
+ pub use fallback::*;
+ 
+-#[cfg(any(target_os = "linux", target_os = "macos"))]
++#[cfg(any(target_os = "linux", target_os = "android", target_os = "macos"))]
+ pub(crate) fn available_pane_shell_from_job(child_pid: u32, job: ForegroundJob) -> Option<String> {
+     if job.process_group_id != child_pid
+         || job.processes.iter().any(|process| process.pid != child_pid)
+@@ -386,7 +399,7 @@ fn normalized_process_name(name: &str) -> String {
+         .to_ascii_lowercase()
+ }
+ 
+-#[cfg(any(target_os = "linux", target_os = "macos"))]
++#[cfg(any(target_os = "linux", target_os = "android", target_os = "macos"))]
+ pub(crate) fn is_powershell_process_name(name: &str) -> bool {
+     matches!(
+         normalized_process_name(name).as_str(),
+@@ -394,7 +407,7 @@ pub(crate) fn is_powershell_process_name(name: &str) -> bool {
+     )
+ }
+ 
+-#[cfg(any(target_os = "linux", target_os = "macos"))]
++#[cfg(any(target_os = "linux", target_os = "android", target_os = "macos"))]
+ pub(crate) fn interactive_unix_shell_command(
+     argv: &[String],
+     shell_name: &str,
+@@ -477,12 +490,12 @@ pub(crate) fn is_pane_shell_process_name(name: &str) -> bool {
+     )
+ }
+ 
+-#[cfg(not(any(target_os = "linux", target_os = "macos")))]
++#[cfg(not(any(target_os = "linux", target_os = "android", target_os = "macos")))]
+ pub fn process_agent_hint(_pid: u32) -> Option<crate::detect::Agent> {
+     None
+ }
+ 
+-#[cfg(any(target_os = "linux", target_os = "macos"))]
++#[cfg(any(target_os = "linux", target_os = "android", target_os = "macos"))]
+ pub(crate) fn parse_agent_env_hint(environ: &[u8]) -> Option<crate::detect::Agent> {
+     for record in environ.split(|&byte| byte == 0) {
+         let Some(value) = record.strip_prefix(b"HERDR_AGENT=") else {
+@@ -611,7 +624,7 @@ mod tests {
+         );
+     }
+ 
+-    #[cfg(any(target_os = "linux", target_os = "macos"))]
++    #[cfg(any(target_os = "linux", target_os = "android", target_os = "macos"))]
+     #[test]
+     fn parse_agent_env_hint_accepts_known_agents() {
+         assert_eq!(
+@@ -624,14 +637,14 @@ mod tests {
+         );
+     }
+ 
+-    #[cfg(any(target_os = "linux", target_os = "macos"))]
++    #[cfg(any(target_os = "linux", target_os = "android", target_os = "macos"))]
+     #[test]
+     fn parse_agent_env_hint_ignores_missing_or_unknown_agents() {
+         assert_eq!(parse_agent_env_hint(b"PATH=/bin\0TERM=xterm\0"), None);
+         assert_eq!(parse_agent_env_hint(b"HERDR_AGENT=not-an-agent\0"), None);
+     }
+ 
+-    #[cfg(any(target_os = "linux", target_os = "macos"))]
++    #[cfg(any(target_os = "linux", target_os = "android", target_os = "macos"))]
+     #[test]
+     fn interactive_shell_command_quotes_for_posix_and_powershell() {
+         let argv = vec![
+diff --git a/src/update.rs b/src/update.rs
+index 854bacd..2a264c0 100644
+--- a/src/update.rs
++++ b/src/update.rs
+@@ -2107,6 +2107,9 @@ fn homebrew_cellar_keg_root(path: &Path) -> Option<PathBuf> {
+ 
+ /// Manual self-update command (`herdr update`).
+ pub fn self_update(options: SelfUpdateOptions) -> Result<Version, String> {
++    if cfg!(target_os = "android") {
++        return Err("self-update is disabled for Termux packages; rerun the herdr-termux installer to install a package update".into());
++    }
+     let channel = UpdateChannel::configured();
+ 
+     if is_homebrew_managed_install() {
+@@ -2346,6 +2349,9 @@ fn print_outdated_integration_notice_with_updated_binary(updated_exe: &Path) {
+ /// Background update check: only surface availability and release notes.
+ /// Runs in a background thread at startup.
+ pub fn auto_update(events: tokio::sync::mpsc::Sender<crate::events::AppEvent>) {
++    if cfg!(target_os = "android") {
++        return;
++    }
+     crate::logging::update_check_started();
+     if let Ok(version) = env::var(FAKE_UPDATE_VERSION_ENV) {
+         let version = version.trim();

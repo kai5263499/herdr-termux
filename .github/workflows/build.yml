@@ -1,0 +1,76 @@
+name: Build Termux package
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*-termux.*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      RUSTUP_TOOLCHAIN: 1.98.0
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y binutils curl git python3 xz-utils
+          sdkmanager 'ndk;28.2.13676358'
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+          rustup toolchain install 1.98.0 --profile minimal
+          rustup component add --toolchain 1.98.0 rust-docs
+      - name: Check packaging and installer
+        run: bash tests/test-packaging.sh
+      - name: Build Android aarch64
+        run: bash scripts/build-android.sh
+      - name: Collect dependency notices
+        run: python3 scripts/collect-licenses.py --zig-cache .cache/zig-global
+      - name: Package
+        run: |
+          bash scripts/package-deb.sh --binary dist/herdr --source-dir upstream --version 0.9.3-1 --output-dir dist --licenses-dir dist/licenses
+          cp -f install.sh dist/install.sh
+          cp -f scripts/smoke-test.sh dist/smoke-test.sh
+          cd dist
+          sha256sum herdr_0.9.3-1_aarch64.deb install.sh smoke-test.sh build-info.txt > SHA256SUMS
+          sha256sum -c SHA256SUMS
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: herdr-termux-aarch64
+          path: |
+            dist/*.deb
+            dist/install.sh
+            dist/smoke-test.sh
+            dist/SHA256SUMS
+            dist/build-info.txt
+          if-no-files-found: error
+
+  draft-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: android
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Download package and create draft for runtime validation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists; leaving its reviewed assets intact."
+            exit 0
+          fi
+          gh run download "$RUN_ID" --name herdr-termux-aarch64 --dir dist
+          gh release create "$RELEASE_TAG" dist/* --draft --verify-tag \
+            --title "Herdr $RELEASE_TAG for Termux" \
+            --notes 'Android aarch64 package. Draft pending Android/Termux runtime smoke testing; see docs/VALIDATION.md.'

@@ -35,11 +35,56 @@ index af02e0a..45d3787 100644
      if target.ends_with("windows-msvc") {
          if let Some(libc_file) = env::var_os("LIBGHOSTTY_VT_WINDOWS_LIBC") {
              println!(
+diff --git a/src/pane.rs b/src/pane.rs
+index 8fd8e39..f53fe17 100644
+--- a/src/pane.rs
++++ b/src/pane.rs
+@@ -1836,7 +1836,7 @@ fn windows_executable_machine_is_compatible(machine: u16, native_machine: u16) -
+ 
+ #[cfg(not(windows))]
+ fn default_pane_shell() -> String {
+-    "/bin/sh".into()
++    crate::platform::DEFAULT_PANE_SHELL.into()
+ }
+ 
+ #[derive(Clone, Copy)]
+@@ -4225,6 +4225,16 @@ mod tests {
+         );
+     }
+ 
++    #[cfg(target_os = "android")]
++    #[test]
++    fn pane_shell_without_shell_env_uses_termux_prefix() {
++        // Pane selection passes a concrete executable to portable-pty, so its
++        // own default-shell discovery cannot correct a wrong fallback here.
++        let expected = "/data/data/com.termux/files/usr/bin/sh";
++        assert_eq!(pane_shell_from("", None), expected);
++        assert_eq!(pane_shell_from("  ", Some("  ".to_string())), expected);
++    }
++
+     #[test]
+     fn pane_shell_ignores_empty_values() {
+         assert_eq!(
 diff --git a/src/platform/mod.rs b/src/platform/mod.rs
-index 927cd32..89e7281 100644
+index 927cd32..85e077b 100644
 --- a/src/platform/mod.rs
 +++ b/src/platform/mod.rs
-@@ -90,7 +90,7 @@ pub(crate) fn classify_child_exit(_status: &portable_pty::ExitStatus) -> ChildEx
+@@ -3,6 +3,14 @@
+ //! Centralizes OS-dependent behavior behind a clean boundary so core
+ //! modules don't scatter `#[cfg]` branches through product logic.
+ 
++/// Fallback used when neither config nor SHELL selects an interactive shell.
++#[cfg(not(windows))]
++pub(crate) const DEFAULT_PANE_SHELL: &str = if cfg!(target_os = "android") {
++    "/data/data/com.termux/files/usr/bin/sh"
++} else {
++    "/bin/sh"
++};
++
+ #[cfg(unix)]
+ pub(crate) mod ssh_agent;
+ 
+@@ -90,7 +98,7 @@ pub(crate) fn classify_child_exit(_status: &portable_pty::ExitStatus) -> ChildEx
      ChildExitReason::Exited
  }
  
@@ -48,7 +93,7 @@ index 927cd32..89e7281 100644
  pub(crate) fn launch_executable() -> std::io::Result<std::path::PathBuf> {
      std::env::current_exe()
  }
-@@ -193,7 +193,7 @@ pub(crate) fn prepare_server_process(_handoff_import: bool) -> std::io::Result<b
+@@ -193,7 +201,7 @@ pub(crate) fn prepare_server_process(_handoff_import: bool) -> std::io::Result<b
      Ok(false)
  }
  
@@ -57,7 +102,7 @@ index 927cd32..89e7281 100644
  pub fn detach_server_daemon_command(command: &mut std::process::Command) {
      use std::os::unix::process::CommandExt;
  
-@@ -210,7 +210,7 @@ pub fn detach_server_daemon_command(command: &mut std::process::Command) {
+@@ -210,7 +218,7 @@ pub fn detach_server_daemon_command(command: &mut std::process::Command) {
      }
  }
  
@@ -66,7 +111,7 @@ index 927cd32..89e7281 100644
  pub fn current_process_is_detached_server_daemon() -> bool {
      unsafe { libc::getsid(0) == libc::getpid() }
  }
-@@ -318,8 +318,11 @@ pub(crate) struct RemoteSshConfigPaths {
+@@ -318,8 +326,11 @@ pub(crate) struct RemoteSshConfigPaths {
      pub(crate) multiplexing: bool,
  }
  
@@ -80,7 +125,7 @@ index 927cd32..89e7281 100644
  
  #[cfg(unix)]
  mod remote_bridge;
-@@ -343,9 +346,9 @@ pub(crate) fn begin_cli_output() {}
+@@ -343,9 +354,9 @@ pub(crate) fn begin_cli_output() {}
  #[cfg(not(unix))]
  pub(crate) fn end_cli_output() {}
  
@@ -92,7 +137,7 @@ index 927cd32..89e7281 100644
  pub use linux::*;
  
  #[cfg(target_os = "macos")]
-@@ -358,12 +361,22 @@ mod windows;
+@@ -358,12 +369,22 @@ mod windows;
  #[cfg(target_os = "windows")]
  pub use windows::*;
  
@@ -118,7 +163,7 @@ index 927cd32..89e7281 100644
  pub(crate) fn available_pane_shell_from_job(child_pid: u32, job: ForegroundJob) -> Option<String> {
      if job.process_group_id != child_pid
          || job.processes.iter().any(|process| process.pid != child_pid)
-@@ -386,7 +399,7 @@ fn normalized_process_name(name: &str) -> String {
+@@ -386,7 +407,7 @@ fn normalized_process_name(name: &str) -> String {
          .to_ascii_lowercase()
  }
  
@@ -127,7 +172,7 @@ index 927cd32..89e7281 100644
  pub(crate) fn is_powershell_process_name(name: &str) -> bool {
      matches!(
          normalized_process_name(name).as_str(),
-@@ -394,7 +407,7 @@ pub(crate) fn is_powershell_process_name(name: &str) -> bool {
+@@ -394,7 +415,7 @@ pub(crate) fn is_powershell_process_name(name: &str) -> bool {
      )
  }
  
@@ -136,7 +181,7 @@ index 927cd32..89e7281 100644
  pub(crate) fn interactive_unix_shell_command(
      argv: &[String],
      shell_name: &str,
-@@ -477,12 +490,12 @@ pub(crate) fn is_pane_shell_process_name(name: &str) -> bool {
+@@ -477,12 +498,12 @@ pub(crate) fn is_pane_shell_process_name(name: &str) -> bool {
      )
  }
  
@@ -151,7 +196,7 @@ index 927cd32..89e7281 100644
  pub(crate) fn parse_agent_env_hint(environ: &[u8]) -> Option<crate::detect::Agent> {
      for record in environ.split(|&byte| byte == 0) {
          let Some(value) = record.strip_prefix(b"HERDR_AGENT=") else {
-@@ -591,7 +604,12 @@ mod tests {
+@@ -591,7 +612,12 @@ mod tests {
      #[test]
      fn detached_custom_command_preserves_unix_login_shell_flag() {
          let cmd = detached_custom_command_process("echo hello");
@@ -165,7 +210,7 @@ index 927cd32..89e7281 100644
          assert_eq!(
              cmd.get_args().collect::<Vec<_>>(),
              [
-@@ -603,15 +621,20 @@ mod tests {
+@@ -603,15 +629,20 @@ mod tests {
  
      #[test]
      fn pane_custom_command_builder_preserves_unix_shell_flag() {
@@ -188,7 +233,7 @@ index 927cd32..89e7281 100644
      #[test]
      fn parse_agent_env_hint_accepts_known_agents() {
          assert_eq!(
-@@ -624,14 +647,14 @@ mod tests {
+@@ -624,14 +655,14 @@ mod tests {
          );
      }
  

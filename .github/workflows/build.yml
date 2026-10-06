@@ -26,6 +26,17 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
           rustup toolchain install 1.98.0 --profile minimal
           rustup component add --toolchain 1.98.0 rust-docs
+      - name: Cache compiler and dependency artifacts
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            build/cargo
+            .cache/zig-*
+          key: ${{ runner.os }}-herdr-ndk28-rust1.98-zig0.16-${{ hashFiles('patches/*.patch', 'scripts/build-android.sh') }}
+          restore-keys: |
+            ${{ runner.os }}-herdr-ndk28-rust1.98-zig0.16-
       - name: Check packaging and installer
         run: bash tests/test-packaging.sh
       - name: Build Android aarch64
@@ -68,7 +79,7 @@ jobs:
           docker run --rm --security-opt seccomp=unconfined \
             --volume "$PWD/dist:/artifacts:ro" \
             termux/termux-docker@sha256:df5f14a6adfc0713df0040b0fa885dd8e72d9455c95df8bc8453fefd970f89e4 \
-            bash -lc 'pkg install -y /artifacts/herdr_0.9.3-1_aarch64.deb && sh /artifacts/smoke-test.sh "$(command -v herdr)"'
+            bash -lc 'TERMUX_PKG_NO_MIRROR_SELECT=true pkg install -y /artifacts/herdr_0.9.3-1_aarch64.deb && sh /artifacts/smoke-test.sh "$(command -v herdr)"'
 
   draft-release:
     if: startsWith(github.ref, 'refs/tags/v')

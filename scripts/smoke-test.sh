@@ -1,6 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/sh
 # Run with `sh scripts/smoke-test.sh /path/to/herdr` in Termux.
 # All server/session state is isolated; existing Herdr sessions are untouched.
+# The CLI and server subshells each set their own environment deliberately.
+# shellcheck disable=SC2030,SC2031
 set -eu
 
 herdr_bin=${1:-herdr}
@@ -36,7 +38,7 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-mkdir -p "$smoke_root/c/herdr" "$smoke_root/r" "$smoke_root/cache" "$smoke_root/data"
+mkdir -p "$smoke_root/c/herdr" "$smoke_root/r" "$smoke_root/cache" "$smoke_root/data" "$smoke_root/state"
 cat > "$smoke_root/c/herdr/config.toml" <<'CONFIG'
 onboarding = false
 [update]
@@ -46,10 +48,13 @@ CONFIG
 
 # Use a subshell to avoid changing the caller's environment, and clear inherited
 # pane routing so this test cannot accidentally operate on a user's session.
+# Leave default_shell unset in the isolated config and remove SHELL explicitly
+# to exercise Android's own default shell path, including container/service use.
 h() (
-    unset HERDR_SOCKET_PATH HERDR_CLIENT_SOCKET_PATH HERDR_ENV HERDR_SESSION
+    unset HERDR_SOCKET_PATH HERDR_CLIENT_SOCKET_PATH HERDR_ENV HERDR_SESSION HERDR_CONFIG_PATH SHELL
     export XDG_CONFIG_HOME="$smoke_root/c" XDG_RUNTIME_DIR="$smoke_root/r"
     export XDG_CACHE_HOME="$smoke_root/cache" XDG_DATA_HOME="$smoke_root/data"
+    export XDG_STATE_HOME="$smoke_root/state"
     export HERDR_DISABLE_SOUND=1
     timeout -k 2 30 "$herdr_bin" --session smoke "$@"
 )
@@ -64,9 +69,10 @@ esac
 # Start the foreground server directly, without placing a timeout around its
 # lifetime. Individual requests below remain bounded.
 (
-    unset HERDR_SOCKET_PATH HERDR_CLIENT_SOCKET_PATH HERDR_ENV HERDR_SESSION
+    unset HERDR_SOCKET_PATH HERDR_CLIENT_SOCKET_PATH HERDR_ENV HERDR_SESSION HERDR_CONFIG_PATH SHELL
     export XDG_CONFIG_HOME="$smoke_root/c" XDG_RUNTIME_DIR="$smoke_root/r"
     export XDG_CACHE_HOME="$smoke_root/cache" XDG_DATA_HOME="$smoke_root/data"
+    export XDG_STATE_HOME="$smoke_root/state"
     export HERDR_DISABLE_SOUND=1
     exec "$herdr_bin" --session smoke server
 ) > "$smoke_root/server.log" 2>&1 &

@@ -36,7 +36,7 @@ Live progress and follow-up work are tracked on the Hermes `herdr-termux` board.
 ## Implementation handoff
 
 The downstream source repository is
-[kai5263499/herdr-termux](https://github.com/kai5263499/herdr-termux).
+[tensorlabresearch/herdr-termux](https://github.com/tensorlabresearch/herdr-termux).
 The build, package, installer, dependency notices, Android smoke script, and CI
 are implemented. Thirteen package/installer checks pass. A native x86_64 Android
 build passes full shell/session testing in the actual Termux application.
@@ -48,5 +48,5 @@ execution-context limits.
 Remaining follow-ups are tracked in Hermes: `t_9db389a7` for physical Galaxy Z
 Fold verification and `t_9aeb30f1` for reviewing future upstream releases.
 
-Installable release: [v0.9.3-termux.1](https://github.com/kai5263499/herdr-termux/releases/tag/v0.9.3-termux.1).
+Installable release: [v0.9.3-termux.1](https://github.com/tensorlabresearch/herdr-termux/releases/tag/v0.9.3-termux.1).
 Phone installation commands are in [README.md](README.md).

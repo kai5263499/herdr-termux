@@ -42,7 +42,7 @@ the pinned Termux Docker image on a native ARM GitHub runner. The container
 validates the target binary and userland, but does not duplicate Android app
 seccomp/SELinux enforcement.
 
-[CI run 37503145293](https://github.com/kai5263499/herdr-termux/actions/runs/37503145293)
+[CI run 37503145293](https://github.com/tensorlabresearch/herdr-termux/actions/runs/37503145293)
 passed the independent build, all 13 package/installer checks, and a clean native
 ARM `pkg install` followed by the full shell/session smoke test with `SHELL`
 unset. The release uses the exact `.deb` from that run.
@@ -52,7 +52,10 @@ SHA-256: `634fc754539a665970f569613e3413fadb6cd231c9ab5b54487690c9ce4ded8c`.
 Packaged binary SHA-256:
 `2925165e65a885fdbe0a3639620928ed31acbee08c0483efa0b2c58ae94a450f`.
 The binary and patch hashes were checked against the CI build metadata, and
-the release installer and smoke script match the checked-in source.
+the release installer and smoke script match the source at commit `5e31cbe`.
+The repository moved to `tensorlabresearch` on October 7, 2026; published
+release assets retain their original checksums, and their previous download
+URLs redirect to the organization's repository.
 
 The first native ARM run installed the package successfully and exposed a shell
 fallback defect when `SHELL` was absent: pane creation selected `/bin/sh`. The

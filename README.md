@@ -14,7 +14,7 @@ Run these commands **inside Termux on your aarch64 phone**:
 ```sh
 pkg update
 pkg install curl
-curl -fL https://github.com/kai5263499/herdr-termux/releases/download/v0.9.3-termux.1/install.sh -o install-herdr.sh
+curl -fL https://github.com/tensorlabresearch/herdr-termux/releases/download/v0.9.3-termux.1/install.sh -o install-herdr.sh
 bash install-herdr.sh
 herdr --version
 herdr
@@ -31,7 +31,7 @@ No Rust or Zig compiler is required on the phone.
 To check the local server and shell automatically after installation:
 
 ```sh
-curl -fL https://github.com/kai5263499/herdr-termux/releases/download/v0.9.3-termux.1/smoke-test.sh -o smoke-test.sh
+curl -fL https://github.com/tensorlabresearch/herdr-termux/releases/download/v0.9.3-termux.1/smoke-test.sh -o smoke-test.sh
 sh smoke-test.sh "$(command -v herdr)"
 ```
 
@@ -40,7 +40,7 @@ This creates and removes an isolated test session and prints `PASS` on success.
 ## Update or remove
 
 For a later published release, download its installer from the
-[releases page](https://github.com/kai5263499/herdr-termux/releases)
+[releases page](https://github.com/tensorlabresearch/herdr-termux/releases)
 and run it, or use the existing installer with `--version RELEASE_TAG`.
 For example, the initial version is `v0.9.3-termux.1`.
 This distribution is installed as a local Debian package; normal `pkg upgrade`

@@ -115,7 +115,7 @@ while (($#)); do
   esac
 done
 case "$url" in
-  "https://github.com/kai5263499/herdr-termux/releases/download/${MOCK_RELEASE:-v0.9.3-termux.1}/"*) ;;
+  "https://github.com/tensorlabresearch/herdr-termux/releases/download/${MOCK_RELEASE:-v0.9.3-termux.1}/"*) ;;
   *) printf 'Unexpected URL: %s\n' "$url" >&2; exit 99 ;;
 esac
 printf '%s\n' "$url" >>"$MOCK_NETWORK_LOG"

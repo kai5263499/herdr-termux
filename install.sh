@@ -4,7 +4,7 @@ set -euo pipefail
 export LC_ALL=C
 
 release=v0.9.3-termux.1
-repo=kai5263499/herdr-termux
+repo=tensorlabresearch/herdr-termux
 termux_prefix=/data/data/com.termux/files/usr
 die() { printf 'herdr installer: %s\n' "$*" >&2; exit 1; }
 usage() {

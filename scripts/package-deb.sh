@@ -96,7 +96,7 @@ fi
 cat >"$doc_dir/README.termux" <<EOF
 Herdr $version for Termux on aarch64 Android (API 24 or newer).
 Upstream: https://github.com/herdrdev/herdr
-Packaging, patches, and build instructions: https://github.com/kai5263499/herdr-termux
+Packaging, patches, and build instructions: https://github.com/tensorlabresearch/herdr-termux
 Updates: rerun that repository's release installer with --version RELEASE_TAG.
 EOF
 installed_size=$(du -sk -- "$stage$prefix" | awk '{print $1}')
@@ -108,7 +108,7 @@ Maintainer: Herdr Termux maintainers <herdr-termux@users.noreply.github.com>
 Installed-Size: $installed_size
 Section: utils
 Priority: optional
-Homepage: https://github.com/kai5263499/herdr-termux
+Homepage: https://github.com/tensorlabresearch/herdr-termux
 Description: terminal workspace manager for AI coding agents
  Patched Android build for standard-prefix Termux on aarch64.
 EOF

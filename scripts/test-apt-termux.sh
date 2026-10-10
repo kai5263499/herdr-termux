@@ -7,7 +7,7 @@ mode=${1:-candidate}
 [[ $PREFIX == /data/data/com.termux/files/usr && $(dpkg --print-architecture) == aarch64 ]]
 
 if [[ $mode == candidate ]]; then
-  install -d -m 755 "$PREFIX/etc/apt/keyrings"
+  install -d -m 755 "$PREFIX/etc/apt/keyrings" "$PREFIX/etc/apt/sources.list.d"
   install -m 644 /site/apt/herdr-termux.gpg "$PREFIX/etc/apt/keyrings/herdr-termux.gpg"
   printf 'deb [arch=aarch64 signed-by=%s] file:/site/apt stable main\n' \
     "$PREFIX/etc/apt/keyrings/herdr-termux.gpg" > "$PREFIX/etc/apt/sources.list.d/herdr-termux.list"

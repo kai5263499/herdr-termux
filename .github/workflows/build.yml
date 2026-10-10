@@ -6,12 +6,20 @@ on:
     tags: ['v*-termux.*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      artifact_run_id:
+        description: 'Recheck native ARM runtime using artifacts from a previous build run (blank builds from source)'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   android:
+    if: github.event_name != 'workflow_dispatch' || inputs.artifact_run_id == ''
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -72,6 +80,7 @@ jobs:
 
   arm-runtime:
     needs: android
+    if: ${{ !cancelled() && (needs.android.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.artifact_run_id != '')) }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 15
     steps:
@@ -79,15 +88,34 @@ jobs:
         with:
           name: herdr-termux-aarch64
           path: dist
+          run-id: ${{ inputs.artifact_run_id || github.run_id }}
+          github-token: ${{ github.token }}
       - name: Install and exercise package in native aarch64 Termux userland
         run: |
           cd dist
           sha256sum -c SHA256SUMS
           cd ..
-          docker run --rm --security-opt seccomp=unconfined \
+          docker run --rm -i --security-opt seccomp=unconfined \
             --volume "$PWD/dist:/artifacts:ro" \
             termux/termux-docker@sha256:df5f14a6adfc0713df0040b0fa885dd8e72d9455c95df8bc8453fefd970f89e4 \
-            bash -lc 'TERMUX_PKG_NO_MIRROR_SELECT=true pkg install -y /artifacts/herdr_0.9.3-2_aarch64.deb && herdr-update --version v0.9.3-termux.2 && sh /artifacts/smoke-test.sh "$(command -v herdr)"'
+            bash -ls <<'TERMUX_TEST'
+          set -euo pipefail
+          TERMUX_PKG_NO_MIRROR_SELECT=true pkg install -y /artifacts/herdr_0.9.3-2_aarch64.deb
+          herdr-update --help
+          # This Linux container has no Android property service. Supply only
+          # the API level for the updater no-op check; architecture, dpkg, and
+          # the installed executable are real native ARM Termux components.
+          property_fixture=$(mktemp -d)
+          trap 'rm -rf -- "$property_fixture"' EXIT
+          cat > "$property_fixture/getprop" <<'GETPROP'
+          #!/data/data/com.termux/files/usr/bin/sh
+          [ "$1" = ro.build.version.sdk ] || exit 1
+          printf '24\n'
+          GETPROP
+          chmod +x "$property_fixture/getprop"
+          PATH="$property_fixture:$PATH" herdr-update --version v0.9.3-termux.2
+          sh /artifacts/smoke-test.sh "$(command -v herdr)"
+          TERMUX_TEST
 
   draft-release:
     if: startsWith(github.ref, 'refs/tags/v')

@@ -96,8 +96,16 @@ and repeat runtime validation before publication.
 GitHub's latest published release once, then pins checksum and package downloads
 to that tag. `--version` bypasses discovery for an exact release. Debian version
 comparison skips installed equal/newer revisions. The package declares Bash,
-curl, coreutils, dpkg, gawk, and termux-tools as dependencies for the updater. The first installation
-still needs curl available to download the bootstrap script.
+curl, coreutils, dpkg, gawk, and termux-tools as dependencies for the updater.
+The first installation still needs curl available to download the bootstrap script.
+
+The native ARM container has no Android property service. Its updater no-op
+check supplies only `getprop ro.build.version.sdk` as an API 24 fixture;
+the real `pkg` installation, Debian version query, updater executable, and
+Herdr shell/session smoke run natively. Android version rejection is also
+covered by the host tests. To repeat only this container check against existing
+build artifacts, dispatch the workflow with `artifact_run_id` set to that
+build's GitHub Actions run ID. This does not rebuild or publish a release.
 
 Release assets are the `.deb`, `install.sh`, `smoke-test.sh`, `build-info.txt`,
 and `SHA256SUMS`. Regenerate the checksum list after copying the release scripts:

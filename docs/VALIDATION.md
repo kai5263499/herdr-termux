@@ -79,3 +79,26 @@ The Samsung Galaxy Z Fold (`SM_F976U1`) has not been accessed in this session.
 The installation instructions and smoke-test asset are provided for a final
 physical-device check. Phone-specific keyboard, touch, display resizing, and
 Android background-process behavior require hands-on validation.
+
+## Tab touch update — October 10, 2026
+
+Patch `0003-termux-tab-options.patch` was validated with 299 passing client
+shell tests (2 existing ignored tests), including active/inactive tab taps,
+the compact mobile switcher, rename targeting, absence of clipboard writes,
+drag-to-reorder, and context-menu dismissal. CI now runs this client suite.
+All 13 packaging/installer checks, changed-file Rust formatting, patch source
+verification, and Android aarch64/x86_64 release builds passed. The full upstream
+`just check` was not run for the tool/Windows SDK reasons described above.
+
+The native x86_64 build passed the full shell/session smoke test in the actual
+Termux v0.118.3 app on a fresh read-only API 36.1 emulator. Android touch events
+opened the tab menu; tapping Rename opened the existing dialog, saving changed
+the tab name, and an outside tap dismissed the menu. Evidence is retained
+locally in `build/tab-options-runtime/`. Resizing to 840×1700 also confirmed
+that tapping a tab in the compact switcher opens the same three-item menu.
+
+The local ARM64 update package is
+`dist/tab-options/herdr_0.9.3-2_aarch64.deb`, SHA-256
+`2f46e57bfa81051c17d015b21a73cf04966acd36872126c254cb3d22842ec28a`.
+It has not been published as a GitHub Release or installed on the physical
+phone. The existing `v0.9.3-termux.1` release assets are unchanged.

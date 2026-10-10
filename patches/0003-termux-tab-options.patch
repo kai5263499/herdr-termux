@@ -1,0 +1,155 @@
+diff --git a/src/client/shell/mobile.rs b/src/client/shell/mobile.rs
+index f4ae0af..087b48e 100644
+--- a/src/client/shell/mobile.rs
++++ b/src/client/shell/mobile.rs
+@@ -1054,11 +1054,12 @@ impl ClientShellState {
+             }) => {
+                 if self.focus_or_activate(
+                     endpoint_id,
+-                    ClientEndpointFocusTarget::Tab(tab_id),
++                    ClientEndpointFocusTarget::Tab(tab_id.clone()),
+                     outcome,
+                 ) {
+                     self.mode = ClientShellMode::Terminal;
+                     self.navigate_workspace_id = None;
++                    self.open_tab_context_menu(tab_id, mouse.column, mouse.row);
+                 }
+             }
+             Some(ClientMobileTarget::NewTab) => {
+diff --git a/src/client/shell/mouse.rs b/src/client/shell/mouse.rs
+index f2df294..1afa84d 100644
+--- a/src/client/shell/mouse.rs
++++ b/src/client/shell/mouse.rs
+@@ -1346,10 +1346,14 @@ impl ClientShellState {
+             if let Some(press) = self.tab_press.take() {
+                 self.push_endpoint_method(
+                     crate::api::schema::Method::TabFocus(crate::api::schema::TabTarget {
+-                        tab_id: press.tab_id,
++                        tab_id: press.tab_id.clone(),
+                     }),
+                     outcome,
+                 );
++                // Termux touch input has no right-click. Open the existing tab
++                // options on release so dragging still reorders tabs.
++                self.open_tab_context_menu(press.tab_id, mouse.column, mouse.row);
++                outcome.repaint = true;
+                 return;
+             }
+         }
+diff --git a/src/client/shell/tests/mobile.rs b/src/client/shell/tests/mobile.rs
+index 4dac549..faec1fa 100644
+--- a/src/client/shell/tests/mobile.rs
++++ b/src/client/shell/tests/mobile.rs
+@@ -343,6 +343,20 @@ fn mobile_header_and_switcher_render_released_sections_and_stable_targets() {
+                     if params.tab_id == "tab_1"
+             )
+     )));
++    assert_eq!(state.mode, ClientShellMode::Terminal);
++    assert!(matches!(
++        &state.overlay,
++        Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
++            target: ClientContextMenuTarget::Tab { tab_id, .. },
++            ..
++        })) if tab_id == "tab_1"
++    ));
++    assert!(!focused
++        .actions
++        .iter()
++        .any(|action| matches!(action, ClientShellAction::ClipboardWrite(_))));
++    state.compose(44, 20).expect("mobile tab options");
++    assert_eq!(state.hits.context_menu_rows.len(), 3);
+ }
+ 
+ #[test]
+diff --git a/src/client/shell/tests/mouse_selection.rs b/src/client/shell/tests/mouse_selection.rs
+index ae4168c..218bdb9 100644
+--- a/src/client/shell/tests/mouse_selection.rs
++++ b/src/client/shell/tests/mouse_selection.rs
+@@ -1018,6 +1018,7 @@ fn tab_click_waits_for_release_and_drag_reorders_by_stable_id() {
+         crate::api::schema::Method::TabMove(params)
+             if params.tab_id == "tab_1" && params.insert_index == 3
+     ));
++    assert!(state.overlay.is_none(), "drag must not open tab options");
+ 
+     state.compose(106, 20).expect("tabs after drag");
+     let second = state.hits.tabs[1].0;
+@@ -1038,6 +1039,79 @@ fn tab_click_waits_for_release_and_drag_reorders_by_stable_id() {
+         ClientShellAction::Endpoint { request, .. }
+             if matches!(&request.method, crate::api::schema::Method::TabFocus(target) if target.tab_id == "tab_2")
+     ));
++    assert!(matches!(
++        &state.overlay,
++        Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
++            target: ClientContextMenuTarget::Tab { tab_id, .. },
++            ..
++        })) if tab_id == "tab_2"
++    ));
++}
++
++#[test]
++fn tab_tap_opens_options_without_copying_and_rename_targets_the_tapped_tab() {
++    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
++    state.set_snapshot(Box::new(snapshot()));
++    state.set_pane_surface(surface());
++    state.compose(106, 20).expect("tab bar");
++    let tab = state.hits.tabs[0].0;
++    let mouse = |kind| {
++        RawInputEvent::Mouse(crossterm::event::MouseEvent {
++            kind,
++            column: tab.x + 1,
++            row: tab.y,
++            modifiers: KeyModifiers::empty(),
++        })
++    };
++    let down = state.handle_raw_events(vec![mouse(MouseEventKind::Down(MouseButton::Left))]);
++    assert!(down.actions.is_empty());
++    assert!(state.overlay.is_none());
++
++    let up = state.handle_raw_events(vec![mouse(MouseEventKind::Up(MouseButton::Left))]);
++    assert!(up.repaint);
++    assert!(up.requests.is_empty());
++    assert!(matches!(
++        &up.actions[..],
++        [ClientShellAction::Endpoint { request, .. }]
++            if matches!(&request.method, crate::api::schema::Method::TabFocus(target) if target.tab_id == "tab_1")
++    ));
++    assert!(state.selection.is_none());
++    let Some(ClientShellOverlay::ContextMenu(menu)) = &state.overlay else {
++        panic!("tap should open tab options");
++    };
++    assert!(matches!(
++        &menu.target,
++        ClientContextMenuTarget::Tab { tab_id, workspace_id }
++            if tab_id == "tab_1" && workspace_id == "ws_1"
++    ));
++    assert_eq!(
++        menu.items()
++            .iter()
++            .map(|item| item.label)
++            .collect::<Vec<_>>(),
++        vec!["New tab", "Rename", "Close"]
++    );
++
++    state.compose(106, 20).expect("tab options");
++    let rename = state
++        .hits
++        .context_menu_rows
++        .iter()
++        .find_map(|(rect, index)| (*index == 1).then_some(*rect))
++        .expect("rename option");
++    state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
++        kind: MouseEventKind::Down(MouseButton::Left),
++        column: rename.x,
++        row: rename.y,
++        modifiers: KeyModifiers::empty(),
++    })]);
++    assert!(matches!(
++        &state.overlay,
++        Some(ClientShellOverlay::Rename(ClientRenameOverlay {
++            target: ClientRenameTarget::Tab { tab_id, .. },
++            ..
++        })) if tab_id == "tab_1"
++    ));
+ }
+ 
+ #[test]

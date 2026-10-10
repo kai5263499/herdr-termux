@@ -8,6 +8,7 @@ distribution and have not been submitted upstream.
 | --- | --- |
 | `0001-android-target.patch` | Add Android API 24 Zig targets and NDK libc configuration; select the existing Linux process implementation and Unix daemon handling on Android; provide a Termux pane shell when `SHELL` is unset; disable upstream binary updates for Termux packages. |
 | `0002-android-runtime.patch` | Exclude logind, use Termux shell and SSH configuration paths, avoid inaccessible `/tmp` fallbacks, and disable SSH connection sharing where Termux paths exceed socket limits. |
+| `0003-termux-tab-options.patch` | Make a tap select the tab and open its existing New tab / Rename / Close menu, including the compact mobile switcher; retain tab dragging and right-click menus. Includes client interaction regression tests. |
 
 The release build verifies the pinned revision and rejects tracked source edits
 outside this patch set. Remove each patch only when the pinned upstream version

@@ -28,6 +28,20 @@ No Rust or Zig compiler is required on the phone.
 
 `Ctrl+B`, then `Q`, detaches. Run `herdr` again to reattach.
 
+## Tab touch controls (next build)
+
+Tap a tab to select it and open **New tab / Rename / Close**. In the compact
+phone layout, open the switcher and tap a tab in its **tabs** section. Tap
+outside the menu or press Escape to dismiss it. Tab dragging with a mouse
+still reorders tabs.
+
+This change is in source builds and is not included in `v0.9.3-termux.1`.
+Keep Herdr's `[ui] mouse_capture = true` enabled (the default) so Termux sends
+taps to Herdr. Use a quick tap: a long press invokes Termux's Android text
+selection, which is handled by the Termux app.
+
+## Installation smoke test
+
 To check the local server and shell automatically after installation:
 
 ```sh

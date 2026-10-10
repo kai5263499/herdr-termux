@@ -55,6 +55,8 @@ The patch series:
   `/tmp` fallback for SSH sockets.
 - Keeps the package-managed Android binary from being replaced by upstream's
   unsupported self-updater.
+- Opens the existing tab options on a tap, in both the tab bar and compact
+  mobile switcher, while retaining mouse drag-to-reorder.
 
 The executable has a Termux library RUNPATH and 16 KiB-compatible ELF segment
 alignment. The package script inspects the ELF architecture, loader, and
@@ -70,6 +72,19 @@ the aarch64 binary without instruction translation. The container uses the
 runner's Linux kernel, so separate Android app testing remains necessary.
 Tag builds create a **draft** GitHub Release after those checks;
 publish it after the Android runtime checks pass.
+
+The workflow also runs the patched client shell tests on Linux. They exercise
+the same downstream tap handlers as the Android build, including tab menu
+actions, mobile layout, and drag-to-reorder. To run them locally after applying
+the patches with the build script:
+
+```sh
+ZIG="$PWD/.cache/zig-x86_64-linux-0.16.0/zig" \
+ZIG_GLOBAL_CACHE_DIR="$PWD/.cache/zig-global" \
+CARGO_TARGET_DIR="$PWD/build/host-tests" CARGO_BUILD_JOBS=4 \
+cargo +1.98.0 test --locked --manifest-path upstream/Cargo.toml \
+  --bin herdr client::shell::tests:: -- --test-threads=4
+```
 
 The workflow currently builds the explicitly pinned upstream version. To move
 to a newer upstream release, review/rebase the patches, update source and

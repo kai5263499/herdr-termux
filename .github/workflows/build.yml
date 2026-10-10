@@ -33,6 +33,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             build/cargo
+            build/host-tests
             .cache/zig-*
           key: ${{ runner.os }}-herdr-ndk28-rust1.98-zig0.16-${{ hashFiles('patches/*.patch', 'scripts/build-android.sh') }}
           restore-keys: |
@@ -41,6 +42,13 @@ jobs:
         run: bash tests/test-packaging.sh
       - name: Build Android aarch64
         run: bash scripts/build-android.sh
+      - name: Test client interactions
+        run: |
+          export ZIG="$PWD/.cache/zig-x86_64-linux-0.16.0/zig"
+          export ZIG_GLOBAL_CACHE_DIR="$PWD/.cache/zig-global"
+          export CARGO_TARGET_DIR="$PWD/build/host-tests"
+          export CARGO_BUILD_JOBS=4
+          cargo test --locked --manifest-path upstream/Cargo.toml --bin herdr client::shell::tests:: -- --test-threads=4
       - name: Collect dependency notices
         run: python3 scripts/collect-licenses.py --zig-cache .cache/zig-global
       - name: Package

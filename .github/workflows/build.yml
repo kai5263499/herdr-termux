@@ -4,6 +4,14 @@ on:
   push:
     branches: [main]
     tags: ['v*-termux.*']
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
+      - 'apt/**'
+      - 'setup-repo.sh'
+      - 'scripts/*apt*'
+      - 'tests/test-apt-repo.py'
+      - '.github/workflows/apt.yml'
   pull_request:
   workflow_dispatch:
     inputs:

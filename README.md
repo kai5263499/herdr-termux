@@ -14,21 +14,25 @@ Run these commands **inside Termux on your aarch64 phone**:
 ```sh
 pkg update
 pkg install -y curl
-curl -fL https://github.com/tensorlabresearch/herdr-termux/releases/latest/download/install.sh -o install-herdr.sh && bash install-herdr.sh
+curl -fL https://tensorlabresearch.github.io/herdr-termux/setup-repo.sh -o setup-herdr-repo.sh && bash setup-herdr-repo.sh
+pkg install herdr
 herdr --version
 herdr
 ```
 
-The installer checks the Termux prefix and architecture, downloads the `.deb`,
-verifies its SHA-256 checksum, and installs it with the package manager.
-The download and checksums come from the same HTTPS GitHub Release; this checks
-download integrity and relies on the GitHub repository as the distribution trust source.
-No Rust or Zig compiler is required on the phone.
+The setup script checks the Termux prefix, architecture, and Android API level,
+verifies the pinned repository public key, and registers a signed APT source.
+APT authenticates the repository metadata and package downloads. The initial
+setup script is trusted through HTTPS GitHub Pages. No Rust or Zig compiler,
+root access, or GitHub login is required on the phone.
 
 `Ctrl+B`, then `Q`, detaches. Run `herdr` again to reattach.
 
-The same commands upgrade an existing installation, including
-`v0.9.3-termux.1`, and install the `herdr-update` command for future updates.
+Run setup once per Termux installation. It is safe to repeat, and existing
+installations (including `v0.9.3-termux.1`) upgrade in place with `pkg install herdr`.
+The [repository guide](docs/PKG-REPOSITORY.md) covers trust, troubleshooting,
+removal, and maintenance. The [implementation plan](docs/PKG-REPOSITORY-PLAN.md)
+records the design and acceptance criteria.
 
 ## Tab touch controls
 
@@ -58,17 +62,15 @@ This creates and removes an isolated test session and prints `PASS` on success.
 From any Termux shell, run:
 
 ```sh
-herdr-update
+pkg upgrade
 ```
 
-It finds the latest published release from this repository, verifies the
-package checksum and metadata, and installs through `pkg`. If your installed
-version is current or newer, it reports that there is nothing to update.
-No GitHub login or compiler is needed. The updater is part of the package and
-updates along with Herdr.
+This updates all installed Termux packages, including Herdr. To refresh the
+package lists and update only Herdr, run `pkg update && pkg install herdr`.
+New reviewed releases are published automatically to the signed repository.
 
 After an update, detach an open Herdr client with **Ctrl+B**, then **Q**, and
-run `herdr` again to load the new interface. The updater does not stop running
+run `herdr` again to load the new interface. Updating does not stop running
 servers or pane processes. This release changes the client interface; future
 server changes may have additional restart guidance in their release notes.
 
@@ -76,12 +78,19 @@ For a specific newer release, use `herdr-update --version v0.9.3-termux.2`.
 Check the installed downstream revision with `dpkg-query -W herdr`;
 `herdr --version` reports the upstream version (`0.9.3`).
 
-Use `herdr-update` for this distribution. Normal `pkg upgrade` does not discover
-GitHub releases, and upstream's `herdr update` does not install Android builds.
-To remove the package and its updater:
+The packaged `herdr-update` command remains available as a direct GitHub Release
+fallback; it skips installed equal/newer versions. Upstream's `herdr update`
+does not install Android builds. To remove the package and its updater:
 
 ```sh
 pkg uninstall herdr
+```
+
+If you prefer not to register the APT repository, the original installer is
+still available; future updates on that path use `herdr-update`:
+
+```sh
+curl -fL https://github.com/tensorlabresearch/herdr-termux/releases/latest/download/install.sh -o install-herdr.sh && bash install-herdr.sh
 ```
 
 ## Build and package

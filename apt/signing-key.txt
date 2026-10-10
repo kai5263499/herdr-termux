@@ -1,0 +1,5 @@
+Fingerprint: 9B9647411E81AA82EDA9E1302C544B16E40B2A1C
+Identity: Herdr Termux repository <herdr-termux@users.noreply.github.com>
+Created: 2026-10-10
+Expires: 2029-10-09
+Algorithm: RSA 3072, signing

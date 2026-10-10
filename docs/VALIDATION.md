@@ -97,8 +97,38 @@ the tab name, and an outside tap dismissed the menu. Evidence is retained
 locally in `build/tab-options-runtime/`. Resizing to 840×1700 also confirmed
 that tapping a tab in the compact switcher opens the same three-item menu.
 
-The local ARM64 update package is
+The initial local ARM64 update candidate was
 `dist/tab-options/herdr_0.9.3-2_aarch64.deb`, SHA-256
 `2f46e57bfa81051c17d015b21a73cf04966acd36872126c254cb3d22842ec28a`.
-It has not been published as a GitHub Release or installed on the physical
-phone. The existing `v0.9.3-termux.1` release assets are unchanged.
+It was superseded by the published package below, which also includes the
+updater. The existing `v0.9.3-termux.1` release assets are unchanged.
+
+## Published updater release — October 10, 2026
+
+[v0.9.3-termux.2](https://github.com/tensorlabresearch/herdr-termux/releases/tag/v0.9.3-termux.2)
+ships the tab touch patch and the packaged `herdr-update` command, from source
+commit `afb1b8b47417358cef8837e6931231e472fbbd61`.
+
+All 18 host packaging/updater checks and ShellCheck passed. Coverage includes
+latest-release resolution, upgrading an older installation, equal/newer-version
+no-ops, Debian version ordering, removed-package handling, failed discovery,
+checksum rejection, and executable/dependency inclusion.
+
+The Android build, 299 client tests, and packaging checks passed in
+[build run 38069514040](https://github.com/tensorlabresearch/herdr-termux/actions/runs/38069514040).
+The initial container updater check exposed the container's missing Android
+property service. Its corrected test supplies only an API 24 `getprop` fixture;
+native architecture, package installation, version comparison, and execution
+remain real. Using the exact same build artifact,
+[runtime recheck 38070127586](https://github.com/tensorlabresearch/herdr-termux/actions/runs/38070127586)
+passed package installation, the installed updater's help/no-op path, and the
+complete PTY shell/session smoke test. The phone installer retains its Android
+API check.
+
+Published package: `herdr_0.9.3-2_aarch64.deb` (5,296,632 bytes).
+SHA-256: `9e9d459708b24e02543311b4f3c97b08a606f943c2b78681b8ed2ed7baadebf6`.
+The public latest-installer URL and all five release assets were downloaded
+without authentication and checked against the release checksums/source.
+The package's updater matches `install.sh`; all patch hashes match the build
+metadata. The local copy under `dist/tab-options/` now matches the release.
+No physical phone was accessed.

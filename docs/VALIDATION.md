@@ -132,3 +132,45 @@ without authentication and checked against the release checksums/source.
 The package's updater matches `install.sh`; all patch hashes match the build
 metadata. The local copy under `dist/tab-options/` now matches the release.
 No physical phone was accessed.
+
+## Signed APT repository — October 10, 2026
+
+The [implementation plan](PKG-REPOSITORY-PLAN.md) and
+[setup/maintenance guide](PKG-REPOSITORY.md) accompany the signed repository at
+`https://tensorlabresearch.github.io/herdr-termux/apt/`.
+
+[Publication run 38074234791](https://github.com/tensorlabresearch/herdr-termux/actions/runs/38074234791)
+passed every job from commit `d8dca8b`: host checks, repository signing, native
+ARM installation/upgrade, Pages deployment, and public HTTPS validation.
+The first run exposed a missing `sources.list.d` directory in the disposable
+container test harness; it stopped before deployment. The corrected harness
+creates that directory, as the phone setup script already does.
+
+All 14 repository/bootstrap tests and 18 existing packaging/installer tests
+passed locally. ShellCheck and actionlint passed. The repository tests exercise
+real APT signature validation, numeric version selection, authenticated package
+downloads, upgrade resolution, and rejection of unsigned, expired, or modified
+metadata and modified packages. Bootstrap checks cover repeated setup, platform
+validation, pinned-key rejection, and restoring previous configuration after a
+failed refresh.
+
+Both native ARM CI checks installed `herdr` by name, ran the complete PTY
+shell/session smoke test, installed the initial `0.9.3-1` release, and upgraded
+to `0.9.3-2` with `pkg upgrade`. The post-deployment check downloaded the original
+setup script from Pages, ran it twice successfully, and installed/upgraded from
+the public HTTPS repository. Its only platform fixture supplies Android's API
+level because the Linux container has no Android property service. APT, dpkg,
+architecture checks, package installation, and application execution are native.
+
+Public downloads of `setup-repo.sh` and the exported signing key matched the
+committed files. The public `InRelease` signature verified with fingerprint
+`9B9647411E81AA82EDA9E1302C544B16E40B2A1C`. The repository contains the original
+published revision 1 and revision 2 packages; no binary was rebuilt or release
+asset replaced for this distribution change. Weekly refresh and published-release
+events renew the 30-day repository metadata. The signing key expires on
+2029-10-09; renewal and recovery procedures are in the maintenance guide.
+
+Local evidence: `build/apt-repository-tests.log`, `build/apt-packaging-tests.log`,
+`build/apt-candidate-runtime.log`, `build/apt-live-runtime.log`, and
+`build/apt-live/`. Physical-phone acceptance remains tracked in Hermes
+`t_9db389a7`; no phone was accessed during this work.

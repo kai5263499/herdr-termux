@@ -8,7 +8,7 @@ binary="$repo_dir/dist/herdr"
 source_dir="$repo_dir/upstream"
 output_dir="$repo_dir/dist"
 licenses_dir="$repo_dir/dist/licenses"
-version=0.9.3-1
+version=0.9.3-2
 prefix=/data/data/com.termux/files/usr
 readelf=${READELF:-readelf}
 
@@ -17,7 +17,7 @@ usage() {
 Usage: scripts/package-deb.sh [options]
   --binary PATH       Android aarch64 executable (default: dist/herdr)
   --source-dir PATH   Pinned upstream checkout (default: upstream)
-  --version VERSION   Debian version (default: 0.9.3-1)
+  --version VERSION   Debian version (default: 0.9.3-2)
   --output-dir PATH   Artifact directory (default: dist)
   --licenses-dir PATH Third-party license notices (default: dist/licenses)
 
@@ -57,7 +57,7 @@ interpreter=$(sed -n 's/.*Requesting program interpreter: \([^]]*\)].*/\1/p' <<<
 [[ $interpreter == /system/bin/linker64 ]] || die "Expected Android interpreter /system/bin/linker64; found ${interpreter:-none}"
 elf_dynamic=$("$readelf" -d -- "$binary")
 mapfile -t needed < <(sed -n 's/.*(NEEDED).*\[\([^]]*\)\].*/\1/p' <<<"$elf_dynamic" | sort -u)
-dependencies=()
+dependencies=(bash curl coreutils dpkg gawk termux-tools)
 for library in "${needed[@]}"; do
   case "$library" in
     # Android public NDK libraries, supplied by the OS, not apt packages.
@@ -68,8 +68,8 @@ for library in "${needed[@]}"; do
   esac
 done
 depends=''
-if ((${#dependencies[@]})); then
-  depends=$(printf '%s\n' "${dependencies[@]}" | sort -u | paste -sd, -)
+depends=$(printf '%s\n' "${dependencies[@]}" | sort -u | paste -sd, -)
+if [[ " ${needed[*]} " == *' libc++_shared.so '* ]]; then
   rpaths=$(sed -n 's/.*(\(RUNPATH\|RPATH\)).*\[\([^]]*\)\].*/\2/p' <<<"$elf_dynamic")
   [[ :$rpaths: == *":$prefix/lib:"* ]] || die "Termux shared libraries require RUNPATH $prefix/lib"
 fi
@@ -81,6 +81,7 @@ trap 'rm -rf -- "$stage"' EXIT
 doc_dir="$stage$prefix/share/doc/herdr"
 install -d -- "$stage/DEBIAN" "$stage$prefix/bin" "$doc_dir/licenses"
 install -m 755 -- "$binary" "$stage$prefix/bin/herdr"
+install -m 755 -- "$repo_dir/install.sh" "$stage$prefix/bin/herdr-update"
 install -m 644 -- "$source_dir/LICENSE" "$doc_dir/copyright"
 cp -rf -- "$licenses_dir/." "$doc_dir/licenses/"
 for vendor in libghostty-vt portable-pty; do
@@ -97,7 +98,9 @@ cat >"$doc_dir/README.termux" <<EOF
 Herdr $version for Termux on aarch64 Android (API 24 or newer).
 Upstream: https://github.com/herdrdev/herdr
 Packaging, patches, and build instructions: https://github.com/tensorlabresearch/herdr-termux
-Updates: rerun that repository's release installer with --version RELEASE_TAG.
+Updates: run herdr-update to install the latest published Termux release.
+For a specific newer release: herdr-update --version vVERSION-termux.REVISION.
+After updating, detach (Ctrl+B then Q) and run herdr again for the new interface.
 EOF
 installed_size=$(du -sk -- "$stage$prefix" | awk '{print $1}')
 cat >"$stage/DEBIAN/control" <<EOF

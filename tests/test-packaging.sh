@@ -40,15 +40,18 @@ printf 'int main(void) { return 0; }\n' >"$test_dir/main.c"
 "$android_cc" "$test_dir/main.c" -o "$test_dir/herdr"
 package=(bash "$repo_dir/scripts/package-deb.sh" --source-dir "$test_dir/source" --licenses-dir "$test_dir/licenses" --output-dir "$test_dir/release")
 SOURCE_DATE_EPOCH=1700000000 "${package[@]}" --binary "$test_dir/herdr" >"$test_dir/package.log"
-deb="$test_dir/release/herdr_0.9.3-1_aarch64.deb"
+deb="$test_dir/release/herdr_0.9.3-2_aarch64.deb"
 [[ $(dpkg-deb -f "$deb" Package) == herdr ]] || fail 'Wrong package name'
 [[ $(dpkg-deb -f "$deb" Architecture) == aarch64 ]] || fail 'Wrong package architecture'
-[[ $(dpkg-deb -f "$deb" Version) == 0.9.3-1 ]] || fail 'Wrong package version'
-[[ -z $(dpkg-deb -f "$deb" Depends) ]] || fail 'Bionic libraries incorrectly became apt dependencies'
-pass 'real Android ELF produces aarch64 package without guessed bionic dependencies'
+[[ $(dpkg-deb -f "$deb" Version) == 0.9.3-2 ]] || fail 'Wrong package version'
+[[ $(dpkg-deb -f "$deb" Depends) == 'bash, coreutils, curl, dpkg, gawk, termux-tools' ]] || fail 'Wrong updater dependencies or bionic libraries added as apt dependencies'
+pass 'real Android ELF includes updater dependencies without guessed bionic dependencies'
 
 dpkg-deb -x "$deb" "$test_dir/extracted"
 [[ -x $test_dir/extracted/data/data/com.termux/files/usr/bin/herdr ]] || fail 'Executable missing or not executable'
+updater="$test_dir/extracted/data/data/com.termux/files/usr/bin/herdr-update"
+[[ -x $updater ]] || fail 'Packaged updater missing or not executable'
+cmp -s "$repo_dir/install.sh" "$updater" || fail 'Packaged updater differs from installer'
 [[ -f $test_dir/extracted/data/data/com.termux/files/usr/share/doc/herdr/copyright ]] || fail 'Upstream license missing'
 [[ -f $test_dir/extracted/data/data/com.termux/files/usr/share/doc/herdr/licenses/NOTICE ]] || fail 'Dependency notices missing'
 while IFS= read -r file; do
@@ -77,7 +80,7 @@ pass 'packager refuses unrecognized shared libraries'
 
 "$android_cc" "$test_dir/main.c" -Wl,--no-as-needed -lc++_shared -Wl,-rpath,/data/data/com.termux/files/usr/lib -o "$test_dir/cpp-herdr"
 "${package[@]}" --binary "$test_dir/cpp-herdr" --output-dir "$test_dir/cpp-release" >"$test_dir/package.log"
-[[ $(dpkg-deb -f "$test_dir/cpp-release/herdr_0.9.3-1_aarch64.deb" Depends) == libc++ ]] || fail 'C++ runtime dependency was not mapped'
+[[ $(dpkg-deb -f "$test_dir/cpp-release/herdr_0.9.3-2_aarch64.deb" Depends) == 'bash, coreutils, curl, dpkg, gawk, libc++, termux-tools' ]] || fail 'C++ runtime dependency was not mapped'
 "$android_cc" "$test_dir/main.c" -Wl,--no-as-needed -lc++_shared -o "$test_dir/no-rpath-herdr"
 expect_failure 'Termux shared libraries require RUNPATH' "${package[@]}" --binary "$test_dir/no-rpath-herdr"
 pass 'C++ runtime maps to libc++ and requires the Termux library search path'
@@ -92,8 +95,17 @@ esac
 EOF
 cat >"$test_dir/mockbin/dpkg" <<'EOF'
 #!/usr/bin/env bash
-[[ $1 == --print-architecture ]] || exit 99
-printf '%s\n' "${MOCK_DPKG_ARCH:-aarch64}"
+case "$1" in
+  --print-architecture) printf '%s\n' "${MOCK_DPKG_ARCH:-aarch64}" ;;
+  --compare-versions) exec "$REAL_DPKG" "$@" ;;
+  *) exit 99 ;;
+esac
+EOF
+cat >"$test_dir/mockbin/dpkg-query" <<'EOF'
+#!/usr/bin/env bash
+[[ $* == '-W -f=${Status} ${Version} herdr' ]] || exit 99
+[[ -n ${MOCK_INSTALLED:-} ]] || exit 1
+printf '%s %s' "${MOCK_INSTALLED_STATUS:-install ok installed}" "$MOCK_INSTALLED"
 EOF
 cat >"$test_dir/mockbin/getprop" <<'EOF'
 #!/usr/bin/env bash
@@ -108,17 +120,22 @@ url=''
 while (($#)); do
   case "$1" in
     --output) destination=$2; shift 2 ;;
-    --retry|--proto) shift 2 ;;
-    --fail|--location|--silent|--show-error|--tlsv1.2) shift ;;
+    --retry|--proto|--proto-redir|--connect-timeout|--max-time|--write-out) shift 2 ;;
+    --fail|--location|--silent|--show-error|--tlsv1.2|--head) shift ;;
     https://*) url=$1; shift ;;
     *) exit 98 ;;
   esac
 done
+printf '%s\n' "$url" >>"$MOCK_NETWORK_LOG"
+if [[ $url == https://github.com/tensorlabresearch/herdr-termux/releases/latest ]]; then
+  [[ ${MOCK_LATEST_FAIL:-0} == 0 ]] || exit 22
+  printf '%s' "${MOCK_LATEST_URL:-https://github.com/tensorlabresearch/herdr-termux/releases/tag/${MOCK_RELEASE:-v0.9.3-termux.2}}"
+  exit 0
+fi
 case "$url" in
-  "https://github.com/tensorlabresearch/herdr-termux/releases/download/${MOCK_RELEASE:-v0.9.3-termux.1}/"*) ;;
+  "https://github.com/tensorlabresearch/herdr-termux/releases/download/${MOCK_RELEASE:-v0.9.3-termux.2}/"*) ;;
   *) printf 'Unexpected URL: %s\n' "$url" >&2; exit 99 ;;
 esac
-printf '%s\n' "$url" >>"$MOCK_NETWORK_LOG"
 cp -f -- "$MOCK_RELEASE_DIR/${url##*/}" "$destination"
 if [[ ${MOCK_TAMPER:-0} == 1 && $destination == *.deb ]]; then
   printf 'tampered\n' >>"$destination"
@@ -131,7 +148,7 @@ set -euo pipefail
 printf '%s\n' "$*" >>"$MOCK_PKG_LOG"
 EOF
 chmod +x "$test_dir/mockbin/"*
-installer=(env "PATH=$test_dir/mockbin:$PATH" PREFIX=/data/data/com.termux/files/usr "TMPDIR=$test_dir/tmp" "MOCK_RELEASE_DIR=$test_dir/release" "MOCK_NETWORK_LOG=$test_dir/network.log" "MOCK_PKG_LOG=$test_dir/pkg.log")
+installer=(env "PATH=$test_dir/mockbin:$PATH" "REAL_DPKG=$(command -v dpkg)" PREFIX=/data/data/com.termux/files/usr "TMPDIR=$test_dir/tmp" "MOCK_RELEASE_DIR=$test_dir/release" "MOCK_NETWORK_LOG=$test_dir/network.log" "MOCK_PKG_LOG=$test_dir/pkg.log")
 
 expect_failure 'Only aarch64 Android is supported' "${installer[@]}" MOCK_ARCH=x86_64 bash "$repo_dir/install.sh"
 expect_failure 'Only aarch64 Android is supported' "${installer[@]}" MOCK_OS=Darwin bash "$repo_dir/install.sh"
@@ -139,7 +156,7 @@ expect_failure 'Only aarch64 Android is supported' "${installer[@]}" MOCK_OS=Dar
 expect_failure 'requires aarch64 Termux' "${installer[@]}" MOCK_DPKG_ARCH=arm bash "$repo_dir/install.sh"
 expect_failure 'Run this inside standard Termux' "${installer[@]}" PREFIX=/usr bash "$repo_dir/install.sh"
 expect_failure 'Android API 24 or newer' "${installer[@]}" MOCK_API=23 bash "$repo_dir/install.sh"
-expect_failure 'Expected a release tag' "${installer[@]}" bash "$repo_dir/install.sh" --version latest
+expect_failure 'Expected a release tag' "${installer[@]}" bash "$repo_dir/install.sh" --version ../latest
 pass 'installer rejects unsupported OS, architecture, prefix, and release selections before download'
 
 expect_failure 'SHA-256 verification failed' "${installer[@]}" MOCK_TAMPER=1 bash "$repo_dir/install.sh"
@@ -156,15 +173,15 @@ pass 'installer rejects an ambiguous checksum manifest'
 dpkg-deb -R "$deb" "$test_dir/wrong-package"
 sed -i 's/^Architecture: aarch64$/Architecture: arm/' "$test_dir/wrong-package/DEBIAN/control"
 mkdir -p "$test_dir/wrong-release"
-dpkg-deb --root-owner-group -Zxz --build "$test_dir/wrong-package" "$test_dir/wrong-release/herdr_0.9.3-1_aarch64.deb" >/dev/null
-(cd "$test_dir/wrong-release" && sha256sum herdr_0.9.3-1_aarch64.deb >SHA256SUMS)
+dpkg-deb --root-owner-group -Zxz --build "$test_dir/wrong-package" "$test_dir/wrong-release/herdr_0.9.3-2_aarch64.deb" >/dev/null
+(cd "$test_dir/wrong-release" && sha256sum herdr_0.9.3-2_aarch64.deb >SHA256SUMS)
 expect_failure 'Unexpected package architecture' "${installer[@]}" "MOCK_RELEASE_DIR=$test_dir/wrong-release" bash "$repo_dir/install.sh"
 [[ ! -f $test_dir/pkg.log ]] || fail 'Installer invoked pkg for package with wrong metadata'
 pass 'installer checks Debian metadata even after a successful checksum match'
 
 "${installer[@]}" bash "$repo_dir/install.sh" >"$test_dir/install.log"
 [[ $(wc -l <"$test_dir/pkg.log") == 1 ]] || fail 'Verified package was not installed exactly once'
-grep -Fq 'herdr_0.9.3-1_aarch64.deb' "$test_dir/pkg.log" || fail 'Wrong package passed to pkg'
+grep -Fq 'herdr_0.9.3-2_aarch64.deb' "$test_dir/pkg.log" || fail 'Wrong package passed to pkg'
 [[ -z $(ls -A "$test_dir/tmp") ]] || fail 'Installer did not remove temporary downloads'
 pass 'installer hands a verified package to pkg and cleans temporary files'
 
@@ -172,4 +189,37 @@ pass 'installer hands a verified package to pkg and cleans temporary files'
 "${installer[@]}" MOCK_RELEASE=v0.9.4-termux.2 "MOCK_RELEASE_DIR=$test_dir/update-release" bash "$repo_dir/install.sh" --version v0.9.4-termux.2 >"$test_dir/install.log"
 grep -Fq 'herdr_0.9.4-2_aarch64.deb' "$test_dir/pkg.log" || fail 'Update did not select requested package revision'
 pass 'explicit update tag selects the matching package version and revision'
+
+rm -f "$test_dir/network.log" "$test_dir/pkg.log"
+"${installer[@]}" MOCK_INSTALLED=0.9.3-1 bash "$updater" >"$test_dir/install.log"
+[[ $(wc -l <"$test_dir/pkg.log") == 1 ]] || fail 'Packaged updater did not upgrade older installation'
+grep -Fq '/releases/latest' "$test_dir/network.log" || fail 'Updater did not discover the latest release'
+grep -Fq '/releases/download/v0.9.3-termux.2/herdr_0.9.3-2_aarch64.deb' "$test_dir/network.log" || fail 'Updater did not pin downloads to the resolved release'
+pass 'packaged updater discovers latest and upgrades an older installation'
+
+for installed in 0.9.3-2 0.9.3-10 0.10.0-1; do
+  rm -f "$test_dir/network.log" "$test_dir/pkg.log"
+  "${installer[@]}" "MOCK_INSTALLED=$installed" bash "$updater" >"$test_dir/install.log"
+  [[ ! -f $test_dir/pkg.log ]] || fail 'Updater reinstalled or downgraded an equal/newer version'
+  [[ $(wc -l <"$test_dir/network.log") == 1 ]] || fail 'No-op updater downloaded package assets'
+  grep -Fq 'nothing to update' "$test_dir/install.log" || fail 'No-op update was not explained'
+done
+pass 'equal/newer installations skip downloads and installation using Debian version ordering'
+
+rm -f "$test_dir/network.log"
+"${installer[@]}" MOCK_INSTALLED=0.9.3-2 bash "$updater" --version v0.9.3-termux.2 >"$test_dir/install.log"
+[[ ! -f $test_dir/network.log && ! -f $test_dir/pkg.log ]] || fail 'Exact installed version triggered network or installation'
+pass 'exact installed version is a no-op without network access'
+
+"${installer[@]}" MOCK_INSTALLED=0.9.3-2 MOCK_INSTALLED_STATUS='deinstall ok config-files' bash "$updater" >"$test_dir/install.log"
+[[ $(wc -l <"$test_dir/pkg.log") == 1 ]] || fail 'Removed package was mistaken for an installed version'
+pass 'a removed package with remaining configuration is installed again'
+
+rm -f "$test_dir/network.log" "$test_dir/pkg.log"
+expect_failure 'Could not check the latest release' "${installer[@]}" MOCK_LATEST_FAIL=1 bash "$updater"
+expect_failure 'Unexpected latest release URL' "${installer[@]}" MOCK_LATEST_URL=https://example.com/v0.9.3-termux.2 bash "$updater"
+expect_failure 'Expected a release tag' "${installer[@]}" MOCK_LATEST_URL=https://github.com/tensorlabresearch/herdr-termux/releases/tag/preview-test bash "$updater"
+[[ ! -f $test_dir/pkg.log ]] || fail 'Failed discovery caused installation'
+[[ -z $(ls -A "$test_dir/tmp") ]] || fail 'Updater left temporary files'
+pass 'failed discovery and unexpected latest release redirects fail before installation'
 printf 'All %s packaging and installer checks passed.\n' "$test_count"

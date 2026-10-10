@@ -53,11 +53,11 @@ jobs:
         run: python3 scripts/collect-licenses.py --zig-cache .cache/zig-global
       - name: Package
         run: |
-          bash scripts/package-deb.sh --binary dist/herdr --source-dir upstream --version 0.9.3-1 --output-dir dist --licenses-dir dist/licenses
+          bash scripts/package-deb.sh --binary dist/herdr --source-dir upstream --version 0.9.3-2 --output-dir dist --licenses-dir dist/licenses
           cp -f install.sh dist/install.sh
           cp -f scripts/smoke-test.sh dist/smoke-test.sh
           cd dist
-          sha256sum herdr_0.9.3-1_aarch64.deb install.sh smoke-test.sh build-info.txt > SHA256SUMS
+          sha256sum herdr_0.9.3-2_aarch64.deb install.sh smoke-test.sh build-info.txt > SHA256SUMS
           sha256sum -c SHA256SUMS
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -87,7 +87,7 @@ jobs:
           docker run --rm --security-opt seccomp=unconfined \
             --volume "$PWD/dist:/artifacts:ro" \
             termux/termux-docker@sha256:df5f14a6adfc0713df0040b0fa885dd8e72d9455c95df8bc8453fefd970f89e4 \
-            bash -lc 'TERMUX_PKG_NO_MIRROR_SELECT=true pkg install -y /artifacts/herdr_0.9.3-1_aarch64.deb && sh /artifacts/smoke-test.sh "$(command -v herdr)"'
+            bash -lc 'TERMUX_PKG_NO_MIRROR_SELECT=true pkg install -y /artifacts/herdr_0.9.3-2_aarch64.deb && herdr-update --version v0.9.3-termux.2 && sh /artifacts/smoke-test.sh "$(command -v herdr)"'
 
   draft-release:
     if: startsWith(github.ref, 'refs/tags/v')

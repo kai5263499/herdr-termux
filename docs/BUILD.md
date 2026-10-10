@@ -9,7 +9,7 @@
 | Zig | 0.16.0, archive SHA-256 verified by the build script |
 | Android NDK | 28.2.13676358 (r28c) |
 | Minimum Android API | 24 |
-| Release package | `herdr_0.9.3-1_aarch64.deb` |
+| Release package | `herdr_0.9.3-2_aarch64.deb` |
 
 Use a Linux x86_64 host with `curl`, `git`, `tar`, `xz`, `python3`, `binutils`,
 `dpkg-deb`, and `rustup`, plus the pinned Android NDK. On a host with the Android
@@ -27,7 +27,7 @@ bash scripts/build-android.sh
 rustup component add --toolchain 1.98.0 rust-docs
 RUSTUP_TOOLCHAIN=1.98.0 python3 scripts/collect-licenses.py --zig-cache .cache/zig-global
 bash scripts/package-deb.sh --binary dist/herdr --source-dir upstream \
-  --version 0.9.3-1 --output-dir dist --licenses-dir dist/licenses
+  --version 0.9.3-2 --output-dir dist --licenses-dir dist/licenses
 bash tests/test-packaging.sh
 ```
 
@@ -88,15 +88,23 @@ cargo +1.98.0 test --locked --manifest-path upstream/Cargo.toml \
 
 The workflow currently builds the explicitly pinned upstream version. To move
 to a newer upstream release, review/rebase the patches, update source and
-toolchain pins as needed, update package version and installer default tag,
+toolchain pins as needed, update the package version in the packager, tests,
+and workflow (including the exact-version updater check),
 and repeat runtime validation before publication.
+
+`install.sh` is also installed as `$PREFIX/bin/herdr-update`. It resolves
+GitHub's latest published release once, then pins checksum and package downloads
+to that tag. `--version` bypasses discovery for an exact release. Debian version
+comparison skips installed equal/newer revisions. The package declares Bash,
+curl, coreutils, dpkg, gawk, and termux-tools as dependencies for the updater. The first installation
+still needs curl available to download the bootstrap script.
 
 Release assets are the `.deb`, `install.sh`, `smoke-test.sh`, `build-info.txt`,
 and `SHA256SUMS`. Regenerate the checksum list after copying the release scripts:
 
 ```sh
 cp -f install.sh scripts/smoke-test.sh dist/
-(cd dist && sha256sum herdr_0.9.3-1_aarch64.deb install.sh smoke-test.sh build-info.txt > SHA256SUMS)
+(cd dist && sha256sum herdr_0.9.3-2_aarch64.deb install.sh smoke-test.sh build-info.txt > SHA256SUMS)
 ```
 
 On a phone or Android emulator running Termux:
